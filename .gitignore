@@ -162,3 +162,6 @@ cython_debug/
 seq_rec_results/log_tensorboard/
 seq_rec_results/saved/
 seq_rec_results/dataset/processed/
+
+# Training datasets
+training_datasets/
