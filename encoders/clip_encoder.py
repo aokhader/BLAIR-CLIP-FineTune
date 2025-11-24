@@ -1,13 +1,20 @@
 """
-This module loads item images from a JSONL dataset, downloads them,
-resizes them to 224x224, and converts them into CLIP image embeddings.
+clip_encoder.py
+----------------
+
+This module provides all CLIP-based image encoding functionality for the project.
+It performs the following tasks:
+
+1. Extracts image URLs from a metadata JSONL file.
+2. Downloads and resizes images to 224x224.
+3. Encodes each item’s images using CLIP's ViT-B/32 model.
+4. Averages embeddings if an item has multiple images.
+5. Returns a dictionary mapping:
+       asin -> 512-dimensional CLIP embedding (torch.Tensor)
 
 Used for:
-    - CLIP baseline model (image-only)
-    - BLaIR-MM fusion model (text + image)
-
-Outputs:
-    A single 512-dimensional CLIP embedding per item.
+    - CLIP Baseline (image-only retrieval)
+    - BLaIR-MM (text + image multimodal fusion model)
 """
 
 import json
@@ -16,12 +23,16 @@ import torch
 import clip
 from PIL import Image
 from io import BytesIO
-
-# Load CLIP model + preprocess transform
-CLIP_MODEL, CLIP_PREPROCESS = clip.load("ViT-B/32", device="cpu")
+from typing import Dict, List, Optional
 
 
-def download_and_resize_image(url: str, size: tuple = (224, 224)) -> Image.Image | None:
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+CLIP_MODEL, CLIP_PREPROCESS = clip.load("ViT-B/32", device=DEVICE)
+
+
+def download_and_resize_image(
+    url: str, size: tuple = (224, 224)
+) -> Optional[Image.Image]:
     """
     Download an image from a URL and resize it.
     :param url: URL of the image.
@@ -35,15 +46,18 @@ def download_and_resize_image(url: str, size: tuple = (224, 224)) -> Image.Image
         img = img.resize(size, Image.BICUBIC)
         return img
     except Exception as e:
-        print(f"Failed to process {url}: {e}")
+        print(f"[CLIP] Failed to process {url}: {e}")
         return None
 
 
-def create_image_lists(dataset_path: str, max_items: int = 500000) -> dict:
+def create_image_lists(
+    dataset_path: str, max_items: int = 500000
+) -> Dict[str, List[Image.Image]]:
     """
     Extract lists of PIL images (resized) for each item in the dataset.
-    :param dataset_path: Path to JSONL file containing item metadata.
-    :param max_items: Limit how many datapoints to process.
+
+    :param dataset_path: Path to JSONL metadata file.
+    :param max_items: Limit number of datapoints (useful for debugging).
     :return: dict: asin -> list of PIL.Image objects
     """
     item_images = {}
@@ -62,7 +76,6 @@ def create_image_lists(dataset_path: str, max_items: int = 500000) -> dict:
             image_list = []
 
             for img_info in images:
-                # Try in order of preference
                 for key in [
                     "hi_res",
                     "large",
@@ -83,12 +96,11 @@ def create_image_lists(dataset_path: str, max_items: int = 500000) -> dict:
     return item_images
 
 
-def encode_images_with_clip(image_list: list) -> torch.Tensor | None:
+def encode_images_with_clip(image_list: List[Image.Image]) -> Optional[torch.Tensor]:
     """
-    Takes a list of PIL images and returns a single fused CLIP embedding (512-dim).
-    If multiple images are available, embeddings are averaged.
+    Encode a list of PIL images into a 512-d averaged CLIP image embedding.
     :param image_list: List of PIL.Image objects.
-    :return: torch.Tensor of shape [512] or None if no valid images.
+    :return: torch.Tensor of shape [512] or None
     """
     if not image_list:
         return None
@@ -97,42 +109,65 @@ def encode_images_with_clip(image_list: list) -> torch.Tensor | None:
 
     for img in image_list:
         try:
-            tensor_img = CLIP_PREPROCESS(img).unsqueeze(0)  # shape: [1, 3, 224, 224]
+            tensor_img = CLIP_PREPROCESS(img).unsqueeze(0).to(DEVICE)
 
             with torch.no_grad():
-                emb = CLIP_MODEL.encode_image(tensor_img)  # shape: [1, 512]
+                emb = CLIP_MODEL.encode_image(tensor_img)  # [1, 512]
                 emb = emb / emb.norm(dim=-1, keepdim=True)  # L2 normalize
-                embeddings.append(emb)
+                embeddings.append(emb.cpu())
 
         except Exception as e:
-            print(f"CLIP encoding failed: {e}")
+            print(f"[CLIP] Encoding failed: {e}")
 
     if not embeddings:
         return None
 
-    # Average all embeddings for this item
+    # Average embeddings for this item
     return torch.mean(torch.cat(embeddings, dim=0), dim=0)  # shape: [512]
 
 
-if __name__ == "__main__":
+def encode_images_for_all_items(
+    metadata_path: str, max_items: int = 500000
+) -> Dict[str, torch.Tensor]:
+    """
+    High-level wrapper that:
+        1. Extracts images for each ASIN
+        2. Encodes all images into a single CLIP embedding per ASIN
 
-    DATASET_PATH = "./training_datasets/meta_Appliances.jsonl"
+    :param metadata_path: Path to metadata JSONL file.
+    :param max_items: Optional limit for debugging.
+    :return: dict: asin -> 512-d CLIP embedding
+    """
+    print(f"\n[CLIP] Extracting image lists from: {metadata_path}")
+    item_images = create_image_lists(metadata_path, max_items=max_items)
 
-    print("Extracting PIL images from dataset...")
-    item_images = create_image_lists(DATASET_PATH, max_items=10)
-    print(f"Extracted images for {len(item_images)} items.\n")
+    print(f"[CLIP] Found {len(item_images)} items with images. Encoding...")
 
-    print("Encoding images with CLIP...")
-    clip_embeddings = {
-        asin: encode_images_with_clip(img_list)
-        for asin, img_list in item_images.items()
-    }
-
-    # Print results
-    for asin, emb in clip_embeddings.items():
-        print(f"\nASIN: {asin}")
+    clip_embeddings = {}
+    for asin, img_list in item_images.items():
+        emb = encode_images_with_clip(img_list)
         if emb is not None:
-            print(f"CLIP embedding shape: {emb.shape}")  # should be torch.Size([512])
-            print(f"Sample values: {emb[:5]}")
-        else:
-            print("No valid images found.")
+            clip_embeddings[asin] = emb
+
+    print(f"[CLIP] Finished encoding {len(clip_embeddings)} items.\n")
+    return clip_embeddings
+
+
+def main():
+    TEST_PATH = "./training_datasets/meta_Appliances.jsonl"
+
+    print("[CLIP] Testing image extraction...")
+    item_imgs = create_image_lists(TEST_PATH, max_items=5)
+    print(f"Extracted images for {len(item_imgs)} items\n")
+
+    print("[CLIP] Testing CLIP encoding...")
+    clip_embs = encode_images_for_all_items(TEST_PATH, max_items=5)
+
+    for asin, emb in clip_embs.items():
+        print(f"ASIN: {asin}")
+        print(f"Embedding shape: {emb.shape}")
+        print(f"Sample values: {emb[:5]}")
+
+
+if __name__ == "__main__":
+    main()
