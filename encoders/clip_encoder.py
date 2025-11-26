@@ -20,14 +20,16 @@ Used for:
 import json
 import requests
 import torch
-import clip
+from transformers import CLIPProcessor, CLIPVisionModel
 from PIL import Image
 from io import BytesIO
 from typing import Dict, List, Optional
 
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-CLIP_MODEL, CLIP_PREPROCESS = clip.load("ViT-B/32", device=DEVICE)
+CLIP_MODEL = CLIPVisionModel.from_pretrained("openai/clip-vit-base-patch32").to(DEVICE)
+CLIP_MODEL.eval()
+CLIP_PROCESSOR = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
 
 
 def download_and_resize_image(
@@ -109,10 +111,12 @@ def encode_images_with_clip(image_list: List[Image.Image]) -> Optional[torch.Ten
 
     for img in image_list:
         try:
-            tensor_img = CLIP_PREPROCESS(img).unsqueeze(0).to(DEVICE)
+            inputs = CLIP_PROCESSOR(images=img, return_tensors="pt").to(DEVICE)
 
             with torch.no_grad():
-                emb = CLIP_MODEL.encode_image(tensor_img)  # [1, 512]
+                outputs = CLIP_MODEL(**inputs)
+                # Use pooler_output which is the CLIP image embedding
+                emb = outputs.pooler_output  # [1, 512]
                 emb = emb / emb.norm(dim=-1, keepdim=True)  # L2 normalize
                 embeddings.append(emb.cpu())
 

@@ -17,7 +17,7 @@ CUDA_VISIBLE_DEVICES=0,1,2 torchrun --standalone --nnodes=1 --nproc_per_node=3 -
     --per_device_train_batch_size 192 \
     --learning_rate 5e-5 \
     --max_seq_length 64 \
-    --evaluation_strategy steps \
+    --eval_strategy steps \
     --metric_for_best_model cl_loss \
     --load_best_model_at_end \
     --eval_steps 1000 \
