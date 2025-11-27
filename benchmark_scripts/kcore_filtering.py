@@ -11,7 +11,7 @@ def load_ratings(file):
         for line in tqdm(fp, desc='Load ratings'):
             try:
                 dp = json.loads(line.strip())
-                item, user, rating, time = dp['parent_asin'], dp['user_id'], dp['rating'], dp['sortTimestamp']
+                item, user, rating, time = dp['parent_asin'], dp['user_id'], dp['rating'], dp['timestamp']
                 inters.append((user, item, float(rating), int(time)))
             except ValueError:
                 print(line)
