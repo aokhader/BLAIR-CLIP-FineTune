@@ -12,8 +12,8 @@ export OMP_NUM_THREADS=8
     # --per_device_train_batch_size 384 \
     # 48
     # --eval_steps 1000 \
-# CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
-CUDA_VISIBLE_DEVICES=0,1 \
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+# CUDA_VISIBLE_DEVICES=0,1 \
 torchrun \
 --standalone \
 --nnodes=1 \
@@ -24,7 +24,7 @@ train.py \
     --train_file clean_review_meta.tsv \
     --output_dir checkpoints/blair-roberta-base \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 384 \
+    --per_device_train_batch_size 48 \
     --learning_rate 5e-5 \
     --max_seq_length 64 \
     --eval_strategy steps \
