@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# activate fv
+
 # Randomly set a port number to avoid clashes between concurrent runs.
 PORT_ID=$(expr $RANDOM + 1000)
 
@@ -21,13 +23,16 @@ torchrun \
     --mm_text_text_weight 0.5 \
     --train_file clean_review_meta_with_images.tsv \
     --image_column image_path \
-    --image_root ./images \
+    --image_root ./blair_clip_images \
     --output_dir checkpoints/blair-clip-base \
     --num_train_epochs 1 \
     --per_device_train_batch_size 32 \
     --learning_rate 3e-5 \
     --max_seq_length 64 \
     --eval_strategy steps \
+    --save_strategy steps \
+    --save_steps 10 \
+    --eval_steps 10 \
     --metric_for_best_model cl_loss \
     --load_best_model_at_end \
     --pooler_type cls \

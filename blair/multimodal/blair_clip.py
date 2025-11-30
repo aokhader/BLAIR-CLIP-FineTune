@@ -13,7 +13,7 @@ from transformers.modeling_outputs import (
 from transformers.models.bert.modeling_bert import BertLMPredictionHead
 from transformers.models.roberta.modeling_roberta import RobertaLMHead
 
-from blair.simcse.models import MLPLayer, Pooler
+from simcse.models import MLPLayer, Pooler
 
 
 class BlairCLIPDualEncoder(nn.Module):

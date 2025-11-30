@@ -92,6 +92,11 @@ def parse_args():
         action="store_true",
         help="If set and output TSV exists, keep existing rows and skip duplicates.",
     )
+    parser.add_argument(
+        "--failed_cache",
+        default="failed_images.json",
+        help="Optional JSON file recording ASINs whose images failed to download.",
+    )
     return parser.parse_args()
 
 
@@ -143,6 +148,17 @@ def download_and_resize_image(
     os.makedirs(image_dir, exist_ok=True)
     filename = f"{asin}.jpg"
     path = os.path.join(image_dir, filename)
+    if os.path.exists(path):
+        try:
+            with Image.open(path) as existing_img:
+                existing_img.verify()
+            return path
+        except Exception:
+            logger.warning("Existing image %s is invalid, re-downloading.", path)
+            try:
+                os.remove(path)
+            except OSError:
+                pass
     try:
         response = SESSION.get(url, timeout=(5, 30))
         response.raise_for_status()
@@ -191,12 +207,39 @@ def pair_hash(review: str, meta: str) -> str:
     return hashlib.md5((review + "\n" + meta).encode("utf-8")).hexdigest()
 
 
+def load_failed_cache(cache_path: Optional[str]) -> set:
+    if not cache_path or not os.path.exists(cache_path):
+        return set()
+    try:
+        with open(cache_path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        if isinstance(data, list):
+            result = set(data)
+        else:
+            result = set(data.values()) if isinstance(data, dict) else set()
+        logger.info("Loaded %d failed image ASINs from %s", len(result), cache_path)
+        return result
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to load failed cache %s: %s", cache_path, exc)
+        return set()
+
+
+def save_failed_cache(cache_path: Optional[str], failed_asins: set):
+    if not cache_path:
+        return
+    tmp_path = cache_path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as handle:
+        json.dump(sorted(failed_asins), handle)
+    os.replace(tmp_path, cache_path)
+
+
 def build_metadata_store(
     categories: List[str],
     image_dir: str,
     image_size: int,
     max_items: Optional[int],
     initial_store: Optional[Dict[str, Tuple[str, str]]] = None,
+    failed_asins: Optional[set] = None,
 ) -> Dict[str, Tuple[str, str]]:
     store: Dict[str, Tuple[str, str]] = dict(initial_store or {})
     processed = len(store)
@@ -220,6 +263,8 @@ def build_metadata_store(
             asin = dp["parent_asin"]
             if asin in store:
                 continue
+            if failed_asins and asin in failed_asins:
+                continue
             image_url = select_image_url(dp.get("images", {}))
             if not image_url:
                 continue
@@ -231,6 +276,8 @@ def build_metadata_store(
                 image_size=image_size,
             )
             if not image_path:
+                if failed_asins is not None:
+                    failed_asins.add(asin)
                 continue
             store[asin] = (dp["cleaned_metadata"], image_path)
             processed += 1
@@ -260,6 +307,7 @@ def main():
     args = parse_args()
     random.seed(args.seed)
 
+    failed_asins = load_failed_cache(args.failed_cache)
     cached_store = load_metadata_cache(args.metadata_cache)
     metadata_store = build_metadata_store(
         categories=args.categories,
@@ -267,8 +315,10 @@ def main():
         image_size=args.image_size,
         max_items=args.max_items,
         initial_store=cached_store,
+        failed_asins=failed_asins,
     )
     save_metadata_cache(args.metadata_cache, metadata_store)
+    save_failed_cache(args.failed_cache, failed_asins)
 
     reviews: List[str] = []
     metas: List[str] = []
