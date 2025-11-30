@@ -31,8 +31,8 @@ torchrun \
     --max_seq_length 64 \
     --eval_strategy steps \
     --save_strategy steps \
-    --save_steps 10 \
-    --eval_steps 10 \
+    --save_steps 100 \
+    --eval_steps 100 \
     --metric_for_best_model cl_loss \
     --load_best_model_at_end \
     --pooler_type cls \
