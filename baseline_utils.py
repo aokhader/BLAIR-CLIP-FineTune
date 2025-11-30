@@ -4,7 +4,6 @@ import os
 import numpy as np
 from collections import defaultdict
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def load_jsonl(file_path):
@@ -60,9 +59,6 @@ class DataSplitter:
                 timestamp = obj.get('timestamp')
                 
                 if user_id and asin and timestamp:
-                    # Only keep interactions for items we have metadata for?
-                    # Or keep all? TF-IDF baseline kept all but filtered later.
-                    # Let's keep all for now, filter during split/train if needed.
                     self.user_interactions[user_id].append((timestamp, asin))
             
             logging.info(f"Loaded reviews for {len(self.user_interactions)} users.")
@@ -77,10 +73,6 @@ class DataSplitter:
         for user_id, interactions in self.user_interactions.items():
             interactions.sort(key=lambda x: x[0])
             
-            # Filter interactions to only include known items (if desired)
-            # For TF-IDF, we need text, so we must filter.
-            # For MF, we need consistent ID space.
-            # Let's filter by known ASINs (from metadata) to ensure consistency.
             filtered_interactions = [(t, a) for t, a in interactions if a in self.asin_to_index]
             
             if len(filtered_interactions) < 2:
@@ -117,17 +109,8 @@ class Evaluator:
         recalls_at_10 = []
         recalls_at_50 = []
         aucs = []
-        
-        # Filter test users who are in train (cold start users in test might fail if no embedding)
-        # For TF-IDF, we computed user vector from train items.
-        # For MF, we have user embeddings.
-        
-        # We assume score_func handles user_id validity or we filter here.
+         
         valid_test_users = [u for u, i in self.test_interactions if u in self.train_interactions]
-        # Actually, for TF-IDF, a user might have 0 train items if we filtered them out? 
-        # But we filtered in preprocess.
-        
-        # For MF, we need user index. We'll handle mapping in the model wrapper.
         
         test_data = [(u, i) for u, i in self.test_interactions if u in self.train_interactions]
         logging.info(f"Evaluating on {len(test_data)} valid test users...")
@@ -136,7 +119,6 @@ class Evaluator:
         for i, (user_id, gt_item) in enumerate(test_data):
             gt_index = self.asin_to_index[gt_item]
             
-            # Get scores for all items
             scores = score_func(user_id) # Should return (N_items,)
             
             # Mask training items
@@ -144,25 +126,11 @@ class Evaluator:
             train_indices = [self.asin_to_index[a] for a in train_items if a in self.asin_to_index]
             
             scores[train_indices] = -np.inf
-            
-            # Ensure GT is not masked
-            # (If GT was in train, it means re-interaction. We unmask it to rank it.)
-            # Note: score_func might need to re-compute score for GT if we just overwrote it with -inf
-            # But usually we just set -inf. If GT index is in train_indices, we need to restore it.
-            # Ideally, score_func returns pure scores. We modify a copy or modify in place carefully.
-            
+             
             if gt_index in train_indices:
-                # We need the original score. 
-                # Optimization: Don't overwrite GT index.
-                # Remove GT index from train_indices if present
                 if gt_index in train_indices:
                     # This check is redundant but safe
-                    pass
-            
-            # Better way:
-            # scores[train_indices] = -np.inf
-            # scores[gt_index] = original_score 
-            # But we lost original score.
+                    pass 
             
             gt_score = scores[gt_index]
             
