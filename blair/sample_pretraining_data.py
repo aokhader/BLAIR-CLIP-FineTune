@@ -4,24 +4,32 @@ from huggingface_hub import hf_hub_download
 from datasets import load_dataset
 
 
-num_workers = 64
+num_workers = 1
 valid_timestamp = 1628643414042
 downsampling_factor = 10
 all_cleaned_item_metadata = {}
 
 
 def load_all_categories():
-    category_filepath = hf_hub_download(
-        repo_id='McAuley-Lab/Amazon-Reviews-2023',
-        filename='all_categories.txt',
-        repo_type='dataset'
-    )
-    with open(category_filepath, 'r') as file:
-        all_categories = [_.strip() for _ in file.readlines()]
-    return all_categories
+    # category_filepath = hf_hub_download(
+    #     repo_id='McAuley-Lab/Amazon-Reviews-2023',
+    #     filename='all_categories.txt',
+    #     repo_type='dataset'
+    # )
+    # with open(category_filepath, 'r') as file:
+    #     all_categories = [_.strip() for _ in file.readlines()]
+    # return all_categories
+    return ['Appliances']
 
 
 def concat_item_metadata(dp):
+    # print(type(dp))
+    # print(dp.keys())
+    # print(dp['title'])
+    # print(dp['description'])
+    # print(dp['features'])
+    # print(dp.keys())
+    # exit()
     meta = ''
     flag = False
     if dp['title'] is not None:
@@ -85,8 +93,8 @@ if __name__ == '__main__':
         meta_dataset = load_dataset(
             'McAuley-Lab/Amazon-Reviews-2023',
             f'raw_meta_{category}',
-            split='full',
-            trust_remote_code=True
+            split='full'
+            # trust_remote_code=True
         )
         concat_meta_dataset = meta_dataset.map(
             concat_item_metadata,
@@ -109,8 +117,8 @@ if __name__ == '__main__':
         review_dataset = load_dataset(
             'McAuley-Lab/Amazon-Reviews-2023',
             f'raw_review_{category}',
-            split='full',
-            trust_remote_code=True
+            split='full'
+            # trust_remote_code=True
         )
         concat_review_dataset = review_dataset.map(
             concat_review,

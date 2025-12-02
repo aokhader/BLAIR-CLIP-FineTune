@@ -76,6 +76,16 @@ python sample_pretraining_data.py
 
 Note that the required datasets will be automatically downloaded from [huggingface dataset hub](https://github.com/hyp1231/AmazonReviews2023).
 
+For the multimodal variant (which also stores local image paths), run:
+
+```bash
+cd blair/
+python sample_multimodal_data.py \
+  --categories Appliances \
+  --image_dir blair_clip_images \
+  --output_tsv clean_review_meta_with_images.tsv
+```
+
 ### Train your models
 
 **blair-roberta-base**
@@ -91,3 +101,31 @@ bash large.sh
 ```
 
 Our training script heavily referenced the open-source implementation of [SimCSE](https://github.com/princeton-nlp/SimCSE). We adapt it to an environment with relatively modern versions of PyTorch & HuggingFace Transformers.
+
+### Multimodal BLaIR + CLIP
+
+We now support a twin-tower configuration that adds a CLIP vision encoder next to the original text tower. Enable it via:
+
+```bash
+python train.py \
+  --model_family blair_clip \
+  --model_name_or_path roberta-base \
+  --mm_clip_model_name openai/clip-vit-base-patch16 \
+  --mm_projection_dim 512 \
+  --mm_text_text_weight 0.5 \
+  --image_column image_path \
+  --image_root /path/to/images \
+  --train_file clean_review_meta_with_images.tsv \
+  --output_dir checkpoints/blair-mm \
+  --per_device_train_batch_size 64 \
+  --num_train_epochs 1 \
+  --do_train --do_eval
+```
+
+Where `image_column` points to a column in the training TSV/CSV that stores image paths (either absolute or relative to `image_root`). Additional knobs:
+
+- `--mm_temperature_init`: initial CLIP temperature τ (default `0.07`).
+- `--mm_freeze_clip_tower` / `--mm_freeze_text_tower`: freeze either tower for efficient fine-tuning.
+- `--mm_text_text_weight`: optionally keep the original text-text contrastive objective in addition to the text–image loss.
+
+The multimodal pipeline reuses the optimizer/scheduler infrastructure from the existing training script and supports distributed execution via `torchrun` in the same way as the text-only models.
