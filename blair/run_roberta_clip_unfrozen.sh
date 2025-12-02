@@ -1,6 +1,9 @@
 #!/bin/bash
 
 # activate fv
+export WANDB_API_KEY=8d9f4b39abd68eb4e29f6fc010b7ee71a2207cde
+export WANDB_PROJECT=${WANDB_PROJECT:-"blair-clip-finetune"}
+RUN_NAME=${RUN_NAME:-"roberta-clip-unfrozen"}
 
 # Randomly set a port number to avoid clashes between concurrent runs.
 PORT_ID=$(expr $RANDOM + 1000)
@@ -21,18 +24,20 @@ torchrun \
     --mm_clip_model_name openai/clip-vit-base-patch16 \
     --mm_projection_dim 512 \
     --mm_text_text_weight 0.5 \
-    --train_file clean_review_meta_with_images.tsv \
+    --train_file clean_review_meta_with_images_FROM_SPLITS.tsv \
     --image_column image_path \
     --image_root ./blair_clip_images \
-    --output_dir checkpoints/blair-clip-base \
-    --num_train_epochs 1 \
-    --per_device_train_batch_size 32 \
-    --learning_rate 3e-5 \
+    --output_dir checkpoints/roberta-clip-unfrozen \
+    --num_train_epochs 5 \
+    --per_device_train_batch_size 256 \
+    --dataloader_num_workers 16 \
+    --learning_rate 1e-4 \
+    --warmup_ratio 0.1 \
     --max_seq_length 64 \
     --eval_strategy steps \
     --save_strategy steps \
-    --save_steps 100 \
-    --eval_steps 100 \
+    --save_steps 1000 \
+    --eval_steps 1000 \
     --metric_for_best_model cl_loss \
     --load_best_model_at_end \
     --pooler_type cls \
@@ -42,6 +47,9 @@ torchrun \
     --do_train \
     --do_eval \
     --do_mlm \
-    --fp16 \
+    --bf16 \
+    --report_to wandb \
+    --run_name $RUN_NAME \
+    --logging_steps 50 \
     "$@"
 
