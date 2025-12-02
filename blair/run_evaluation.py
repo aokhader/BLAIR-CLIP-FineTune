@@ -211,24 +211,27 @@ class BlairEvaluator:
             )
             
             # Load State Dict
-            weights_path = os.path.join(self.model_path, "pytorch_model.bin")
-            if not os.path.exists(weights_path):
-                 # Try without .bin or looking for checkpoint
-                 raise FileNotFoundError(f"Model weights not found at {weights_path}")
-                 
-            state_dict = torch.load(weights_path, map_location='cpu')
-            
-            # Handle potential key mismatches if any (e.g. DDP prefix)
-            new_state_dict = {}
-            for k, v in state_dict.items():
-                if k.startswith("module."):
-                    new_state_dict[k[7:]] = v
-                else:
-                    new_state_dict[k] = v
-            
-            # Load weights
-            missing, unexpected = self.model.load_state_dict(new_state_dict, strict=False)
-            logging.info(f"Loaded weights. Missing: {len(missing)}, Unexpected: {len(unexpected)}")
+            if self.model_path == "untrained_baseline":
+                logging.info("Skipping weight loading for untrained baseline (using pre-trained backbones + random projections).")
+            else:
+                weights_path = os.path.join(self.model_path, "pytorch_model.bin")
+                if not os.path.exists(weights_path):
+                     # Try without .bin or looking for checkpoint
+                     raise FileNotFoundError(f"Model weights not found at {weights_path}")
+                     
+                state_dict = torch.load(weights_path, map_location='cpu')
+                
+                # Handle potential key mismatches if any (e.g. DDP prefix)
+                new_state_dict = {}
+                for k, v in state_dict.items():
+                    if k.startswith("module."):
+                        new_state_dict[k[7:]] = v
+                    else:
+                        new_state_dict[k] = v
+                
+                # Load weights
+                missing, unexpected = self.model.load_state_dict(new_state_dict, strict=False)
+                logging.info(f"Loaded weights. Missing: {len(missing)}, Unexpected: {len(unexpected)}")
             
         elif self.model_type in ['blair_base', 'blair_large']:
             # Load HF model directly
@@ -435,6 +438,7 @@ def run_benchmark_suite(args):
     # Define models to evaluate
     # Format: (Friendly Name, Model Type, Checkpoint Path/ID)
     models = [
+        ("Untrained BLaIR-CLIP", "blair_clip", "untrained_baseline"),
         ("BLaIR-Base", "blair_base", "hyp1231/blair-roberta-base"),
         ("BLaIR-Large", "blair_large", "hyp1231/blair-roberta-large"),
         ("RoBERTa-CLIP-Unfrozen", "blair_clip", "checkpoints/roberta-clip-unfrozen"),
@@ -487,9 +491,13 @@ def run_benchmark_suite(args):
     # Write to CSV
     if all_results:
         keys = all_results[0].keys()
-        with open(results_file, 'w', newline='') as f:
+        file_exists = os.path.exists(results_file)
+        
+        mode = 'a' if file_exists else 'w'
+        with open(results_file, mode, newline='') as f:
             writer = csv.DictWriter(f, fieldnames=keys)
-            writer.writeheader()
+            if not file_exists:
+                writer.writeheader()
             writer.writerows(all_results)
         logging.info(f"Saved benchmark results to {results_file}")
     else:
