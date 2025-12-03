@@ -5,15 +5,15 @@ import logging
 # Add current directory to sys.path
 sys.path.append(os.getcwd())
 
-from tfidf_baseline.baseline_tfidf import TFIDFBaseline
+from baselines.baseline_tfidf import TFIDFBaseline
 from mf_baseline.baseline_mf import MFBaseline
 
 def run_tfidf():
     print("Running TF-IDF Baseline for Appliances_no_images...")
     model = TFIDFBaseline(
         data_dir=".", 
-        prefix="Appliances_no_images", 
-        meta_file="meta/meta_Appliances.json"
+        meta_file="meta/meta_Appliances.json",
+        reviews_file="AmazonRaw/review_categories/Appliances_no_images.json"
     )
     results = model.run()
     print("TF-IDF Results:", results)

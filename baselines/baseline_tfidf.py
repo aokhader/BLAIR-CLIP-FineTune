@@ -125,6 +125,9 @@ class TFIDFBaseline:
         
         recalls_at_10 = []
         recalls_at_50 = []
+        ndcgs_at_10 = []
+        ndcgs_at_50 = []
+        mrrs = []
         aucs = []
         
         test_user_ids = [u for u, i in self.test_interactions if u in self.user_vectors and i in self.asin_to_index]
@@ -157,8 +160,16 @@ class TFIDFBaseline:
             higher_scores = (scores > gt_score).sum()
             rank = higher_scores + 1
             
+            # Metrics
             recalls_at_10.append(1 if rank <= 10 else 0)
             recalls_at_50.append(1 if rank <= 50 else 0)
+            
+            # MRR
+            mrrs.append(1.0 / rank)
+            
+            # NDCG@K
+            ndcgs_at_10.append(1.0 / np.log2(rank + 1) if rank <= 10 else 0.0)
+            ndcgs_at_50.append(1.0 / np.log2(rank + 1) if rank <= 50 else 0.0)
             
             valid_count = (scores > -np.inf).sum()
             num_negatives = valid_count - 1
@@ -173,16 +184,25 @@ class TFIDFBaseline:
 
         avg_r10 = np.mean(recalls_at_10)
         avg_r50 = np.mean(recalls_at_50)
+        avg_mrr = np.mean(mrrs)
+        avg_ndcg10 = np.mean(ndcgs_at_10)
+        avg_ndcg50 = np.mean(ndcgs_at_50)
         avg_auc = np.mean(aucs)
         
         logging.info("Final Results:")
         logging.info(f"Recall@10: {avg_r10:.4f}")
         logging.info(f"Recall@50: {avg_r50:.4f}")
+        logging.info(f"MRR:       {avg_mrr:.4f}")
+        logging.info(f"NDCG@10:   {avg_ndcg10:.4f}")
+        logging.info(f"NDCG@50:   {avg_ndcg50:.4f}")
         logging.info(f"AUC:       {avg_auc:.4f}")
         
         return {
             'Recall@10': avg_r10,
             'Recall@50': avg_r50,
+            'MRR': avg_mrr,
+            'NDCG@10': avg_ndcg10,
+            'NDCG@50': avg_ndcg50,
             'AUC': avg_auc
         }
 
