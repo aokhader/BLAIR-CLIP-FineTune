@@ -6,7 +6,7 @@ import logging
 sys.path.append(os.getcwd())
 
 from baselines.baseline_tfidf import TFIDFBaseline
-from mf_baseline.baseline_mf import MFBaseline
+from baseline_mf import MFBaseline
 
 def run_tfidf():
     print("Running TF-IDF Baseline for Appliances_no_images...")

@@ -5,7 +5,7 @@ import logging
 # Add current directory to sys.path
 sys.path.append(os.getcwd())
 
-from mf_baseline.baseline_mf import MFBaseline
+from baselines.baseline_mf import MFBaseline
 
 def run_mf():
     print("Running MF Baseline for Appliances.json (with images)...")
