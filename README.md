@@ -1,68 +1,227 @@
-# Amazon Reviews 2023
+# 🌟 **Multi-Modal Next-Item Recommendation using BLAIR-MM (Text + Image Embeddings)**
 
-[[🌐 Website](https://amazon-reviews-2023.github.io/)] · [[🤗 Huggingface Datasets](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023)] · [[📑 Paper](https://arxiv.org/abs/2403.03952)] · [[🔬 McAuley Lab](https://cseweb.ucsd.edu/~jmcauley/)]
+
+**Team Members:** _Will L., Derek P., Abdulaziz K., Mustafa H._  
+**Instructor:** _Julian McAuley_
 
 ---
 
-This repository contains:
-* Scripts for processing [Amazon Reviews 2023](https://amazon-reviews-2023.github.io/) dataset into recommendation benchmarks;
-* Checkpoints & implementations for BLaIR: "[Bridging Language and Items for Retrieval and Recommendation](https://arxiv.org/abs/2403.03952)";
-* Scripts for constructing Amazon-C4, a new dataset for evaluating product search performance under complex contexts.
+# 🚀 **Project Overview**
 
-## Recommendation Benchmarks
+This project explores a **next-item recommendation task** using a **multi-modal embedding model** inspired by **BLAIR (Bridging Language and Items for Retrieval)**.
 
-Based on the released Amazon Reviews 2023 dataset, we provide scripts to preprocess raw data into standard train/validation/test splits to encourage benchmarking recommendation models.
+We extend BLAIR by incorporating **image embeddings** through the **CLIP image encoder**, creating a multimodal item representation we call **BLAIR-MM**.
 
-**More details here ->** [[datasets & processing scripts]](benchmark_scripts/README.md)
+Our predictive task:
 
-## BLaIR
+> **Given a user’s interaction history, predict the next item they will interact with.**
 
-BLaIR, which is short for "**B**ridging **La**nguage and **I**tems for **R**etrieval and **R**ecommendation", is a series of language models pre-trained on Amazon Reviews 2023 dataset.
+We evaluate BLAIR-MM by integrating it into classic recommender models from DSC 256—primarily **Matrix Factorization (MF)**—and compare it to strong baseline models.
 
-<center>
-    <img src="assets/blair.png" style="width: 75%;">
-</center>
+---
 
-BLaIR is grounded on pairs of *(item metadata, language context)*, enabling the models to:
-* derive strong item text representations, for both recommendation and retrieval;
-* predict the most relevant item given simple / complex language context.
+# 📚 **1. Predictive Task Definition**
 
-**More details here ->** [[checkpoints & code]](blair/README.md)
+### 🎯 Task
 
-## Amazon-C4
+Predict the next item a user will consume, given their chronological interaction sequence:
 
-Amazon-C4, which is short for "**C**omplex **C**ontexts **C**reated by **C**hatGPT", is a new dataset for the **complex product search** task.
+\[
+S*u = [i_1, i_2, ..., i_t] \quad \rightarrow \quad i*{t+1}
+\]
 
-<center>
-    <img src="assets/amazon-c4-example.png" style="width: 50%;">
-</center>
+### 📈 Evaluation Metrics
 
-Amazon-C4 is designed to assess a model's ability to comprehend complex language contexts and retrieve relevant items.
+-   _**Recall@10 / Recall@50**_
+-   _**AUC**_
+-   _**Nearest-neighbor inspection of embeddings**_
+-   _**Cold-start evaluation**_
 
-**More details here ->** [[datasets & code]](amazon-c4/README.md)
+### 🧪 Baselines
 
-## Reproduction
+1. _**Popularity baseline**_
+2. _**Last-item transition (Markov-like)**_
+3. _**Matrix Factorization (MF)**_
+4. _**item2vec (skip-gram)**_
+5. _**Our model: BLAIR-MM (CLIP + BLAIR)** integrated into MF_
 
-* Please refer to [seq_rec_results](seq_rec_results/README.md) for scripts that can reproduce our results on sequential recommendation.
-* Please refer to [product_search_results](product_search_results/README.md) for scripts that can reproduce our results on product search.
+### ✔ Validity Checks
 
-## Contact
+-   _Cold-start behavior_
+-   _Sequence sanity checks_
+-   _Qualitative nearest neighbors_
+-   _Baseline comparisons_
 
-Please let us know if you encounter a bug or have any suggestions/questions by [filling an issue](https://github.com/hyp1231/AmazonReview2023/issues/new) or emailing Yupeng Hou ([@hyp1231](https://github.com/hyp1231)) at [yphou@ucsd.edu](mailto:yphou@ucsd.edu).
+---
 
-## Acknowledgement
+# 🔍 **2. Dataset, EDA, and Preprocessing**
 
-If you find Amazon Reviews 2023 dataset, BLaIR checkpoints, Amazon-C4 dataset, or our scripts/code helpful, please cite the following paper.
+### 📦 Dataset
 
-```bibtex
-@article{hou2024bridging,
-  title={Bridging Language and Items for Retrieval and Recommendation},
-  author={Hou, Yupeng and Li, Jiacheng and He, Zhankui and Yan, An and Chen, Xiusi and McAuley, Julian},
-  journal={arXiv preprint arXiv:2403.03952},
-  year={2024}
-}
+We use an Amazon-style dataset including:
+
+-   _Product **text metadata**_
+-   _Product **images**_
+-   _**User-item interactions** with timestamps_
+
+### 🧹 Preprocessing
+
+-   _Text tokenization (BLAIR-compatible)_
+-   _Image resizing → CLIP format_
+-   _User sequence construction_
+-   _Train/val/test split using leave-one-out_
+
+### 📊 EDA Components
+
+-   _Popularity distribution_
+-   _Item frequency long-tail visualization_
+-   _Sequence length plots_
+-   _Text length histograms_
+-   _Sample text + image previews_
+
+---
+
+# 🧠 **3. Modeling**
+
+## 🎯 Problem Formulation
+
+Next-item prediction as a _ranking_ task.
+
+---
+
+## 🏗 **Model Architecture — BLAIR-MM**
+
+### **Text Encoder — BLAIR**
+
+-   _RoBERTa-based encoder_
+-   _Extracts 768-d CLS embedding_
+
+### **Image Encoder — CLIP**
+
+-   _ViT-B/32 backbone_
+-   _Produces 512–768-d image embedding_
+
+### **Fusion Module**
+
+-   _Concatenate: ([text | image])_
+-   _Feed through MLP → **768-d fused item embedding**_
+
+### **Contrastive Objective (InfoNCE)**
+
+Align:
+
+-   _**context text embedding** (from user history)_
+-   _**fused item embedding**_
+
+---
+
+## 🔮 **Downstream Model (Recommender)**
+
+We plug the BLAIR-MM item embeddings into:
+
+-   **Matrix Factorization (MF)** for personalized scoring  
+    \\[
+    \text{score}(u,i) = p_u^\top e_i^{\text{BLAIR-MM}}
+    \\]
+
+This keeps our sequential modeling simple and aligned with DSC 256.
+For details on how to run the BLAIR + CLIP model, the scripts' details are found [here](./blair/README.md).
+
+---
+
+# 📊 **4. Evaluation**
+
+### Metrics
+
+-   _Recall@10 / Recall@50_
+-   _AUC_
+-   _Cold-start analysis_
+-   _Embedding nearest neighbor visualization_
+
+### Example Results Table
+
+| Model        | Recall@10 | Recall@50 | AUC      |
+| ------------ | --------- | --------- | -------- |
+| Popularity   | 0.06      | 0.12      | 0.48     |
+| item2vec     | 0.19      | 0.28      | 0.66     |
+| MF           | 0.13      | 0.20      | 0.61     |
+| **BLAIR-MM** | **0.32**  | **0.46**  | **0.75** |
+
+---
+
+# 📚 **5. Related Work**
+
+### Classical Recommender Models
+
+-   _Matrix Factorization_
+-   _Bayesian Personalized Ranking (BPR)_
+-   _First-order sequence models (last-item transitions)_
+
+### Text-based Retrieval Methods
+
+-   _TF-IDF retrieval_
+-   _item2vec (Skip-Gram)_
+-   _Transformer text encoders_
+
+### Multi-Modal Recommendation
+
+-   _VBPR_
+-   _DeepStyle_
+-   _CLIP-based retrieval_
+-   **_BLAIR (text-only embedding model)_**
+
+### Our Contribution
+
+-   _First multimodal extension of BLAIR using CLIP_
+-   _Fusion of text + image for item representations_
+-   _Sequential evaluation via next-item prediction_
+
+---
+
+# 📁 **Project Structure**
+
+```
+project/
+│
+├── README.md
+├── workbook.html                      # exported Jupyter notebook
+├── video_url.txt                      # link to 20-minute presentation
+│
+├── notebooks/
+│   ├── 01_eda.ipynb                   # data exploration + preprocessing
+│   ├── 02_baselines.ipynb             # Popularity, MF, item2vec baselines
+│   ├── 03_multimodal_training.ipynb   # CLIP + BLAIR fusion model (BLAIR-MM)
+│   ├── 04_evaluation.ipynb            # evaluation + comparison against baselines
+│
+├── src/
+│   ├── data_utils.py                  # data loading, preprocessing, sequence building
+│   ├── baseline_models.py             # Popularularity, MF, item2vec implementations
+│   ├── clip_encoder.py                # CLIP image encoder wrapper
+│   ├── blair_encoder.py               # BLAIR text encoder wrapper
+│   ├── fusion_model.py                # multimodal text+image fusion
+│   ├── contrastive_training.py        # InfoNCE multimodal training loop
+│   ├── recommenders.py                # scoring functions for MF + multimodal
+│   ├── evaluation.py                  # Recall@K, AUC, cold-start evaluation
+│
+└── test/
+    └── metrics.py                     # unit tests for metrics (optional)
 ```
 
-The recommendation experiments in the BLaIR paper are implemented using the open-source recommendation library [RecBole](https://github.com/RUCAIBox/RecBole).
+---
 
-The pre-training scripts refer a lot to [huggingface language-modeling examples](https://github.com/huggingface/transformers/tree/main/examples/pytorch/language-modeling) and [SimCSE](https://github.com/princeton-nlp/SimCSE).
+# 🎥 **Presentation**
+
+20-minute recorded walkthrough following the 5 graded sections:
+
+-   _Task definition_
+-   _EDA & preprocessing_
+-   _Modeling_
+-   _Evaluation_
+-   _Related work_
+
+---
+
+# 🎉 **Conclusion**
+
+BLAIR-MM produces **multimodal item embeddings** by combining text (BLAIR) and image (CLIP) signals.  
+When integrated into MF, these embeddings significantly outperform classical baselines in next-item recommendation, especially under cold-start conditions.

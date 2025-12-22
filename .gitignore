@@ -167,3 +167,4 @@ seq_rec_results/dataset/processed/
 # Training datasets
 training_datasets/
 BLAIR-CLIP-dataset/meta_Appliances.jsonl
+BLAIR-CLIP-dataset/Appliances.jsonl
